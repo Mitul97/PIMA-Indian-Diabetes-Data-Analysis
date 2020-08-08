@@ -2,14 +2,8 @@
 
 ## Background
 
-What is diabetes?
-"Diabetes is a disease that occurs when your blood glucose, also called blood sugar, is too high. Blood glucose is your main source of energy and comes from the food you eat. Insulin, a hormone made by the pancreas, helps glucose from food get into your cells to be used for energy."
-
-Type 1: If you have type 1 diabetes, your body does not make insulin. Your immune system attacks and destroys the cells in your pancreas that make insulin. Type 1 diabetes is usually diagnosed in children and young adults, although it can appear at any age. People with type 1 diabetes need to take insulin every day to stay alive.
-Type 2: If you have type 2 diabetes, your body does not make or use insulin well. You can develop type 2 diabetes at any age, even during childhood. However, this type of diabetes occurs most often in middle-aged and older people. Type 2 is the most common type of diabetes.
-Gestational diabetes: Gestational diabetes develops in some women when they are pregnant. Most of the time, this type of diabetes goes away after the baby is born. However, if you’ve had gestational diabetes, you have a greater chance of developing type 2 diabetes later in life. Sometimes diabetes diagnosed during pregnancy is actually type 2 diabetes. Reference link
-Dataset
-This dataset is originally from the National Institute of Diabetes and Digestive and Kidney Diseases. Several constraints were placed on the selection of these instances from a larger database. In particular, all patients here are females at least 21 years old of Pima Indian heritage.
+Diabetes Mellitus is affecting 382 million people around the world. Hence, there is increase in the number of people with type 2 diabetes worldwide. Only in United states of America, approximately 30.3 million people were identified as suffering from diabetes and 1.5 million Americans are being diagnosed with diabetes each year. The population studied was the PIMA Indian tribe women population near Phoenix, Arizona, United States. The tribe has been under continuous study since 1965 by the National Institute of Diabetes and Digestive and Kidney Diseases due to it’s high incidence and prediabetes rate of diabetes.
+Since in women pregnancy seems to be a factor. According to World Health Organization Criteria, which stated that “if the 2-hour post-load glucose was at least 200 mg/dl at any survey exam or if the Indian Health Service Hospital serving the community found a glucose concentration of at least 200 mg/dl during routine medical care”. Given the data about PIMA, we will be trying to make predictions on how likely a PIMA Indian women is to suffer from diabetes, and therefore, act appropriately towards it. We can start analyzing statistical data that will help us study the onset of diabetes in Pima Indian women.
 
 ## Features
 Pregnancies: Number of times pregnant.
