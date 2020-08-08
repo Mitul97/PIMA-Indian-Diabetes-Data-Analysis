@@ -35,5 +35,5 @@ Age: No explanation needed.
 - Converting the distribution of fields to Normal Distribution
 - Data Visualization (Joint density plot and joint boxplot)
 - Hypothesis Testing (Paired t-test)
-- Coorelation Heat map
+- Correlation Heat map
 - Logistic Regression Model to Predict Diabetes
