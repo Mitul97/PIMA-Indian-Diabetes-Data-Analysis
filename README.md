@@ -27,3 +27,13 @@ BMI: Body mass index (weight in kg/(height in m)2).
 DiabetesPedigreeFunction: iabetes pedigree function (a function which scores likelihood of diabetes based on family history).
 
 Age: No explanation needed.
+
+## Steps
+
+- Data Cleaning
+- Checking Normality of Data (QQ-Plots, Cullen and Frey Graph)
+- Converting the distribution of fields to Normal Distribution
+- Data Visualization (Joint density plot and joint boxplot)
+- Hypothesis Testing (Paired t-test)
+- Coorelation Heat map
+- Logistic Regression Model to Predict Diabetes
