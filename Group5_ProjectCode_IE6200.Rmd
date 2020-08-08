@@ -1,0 +1,817 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+###############################################################################################################################################################################
+Title:*PIMA Indian Diabetes Data Analysis*
+
+Submitted by: *Mitul Shah*
+              *Siddharth Muthe*
+              *Yuvraj Singh Tomar*
+
+IE6200 SECTION:7 GROUP:5
+Data Analytics Engineering, College of Engineering, Fall'19
+Northeastern University, Boston, Massachusetts, United States of America
+
+###############################################################################################################################################################################
+*Introduction*
+
+Diabetes Mellitus is affecting 382 million people around the world. Hence, there is increase in the number of people with type 2 diabetes worldwide. Only in United states of America, approximately 30.3 million people were identified as suffering from diabetes and 1.5 million Americans are being diagnosed with diabetes each year. The population studied was the PIMA Indian tribe women population near Phoenix, Arizona, United States. The tribe has been under continuous study since 1965 by the National Institute of Diabetes and Digestive and Kidney Diseases due to it's high incidence and prediabetes rate of diabetes.
+
+Since in women pregnancy seems to be a factor. According to World Health Organization Criteria,  which stated that "if the 2-hour post-load glucose was at least 200 mg/dl at any survey exam or if the Indian Health Service Hospital serving the community found a glucose concentration of at least 200 mg/dl during routine medical care". Given the data about PIMA, we will be trying to make predictions on how likely a PIMA Indian women is to suffer from diabetes, and therefore, act appropriately towards it. We can start analyzing statistical data that will help us study the onset of diabetes in Pima Indian women.
+
+```{r}
+library(tidyverse)
+library(gridExtra)
+library(psych)
+library(reshape2)
+library(corrplot)
+library(ggpubr)
+library(e1071)
+library(caTools)
+library(fitdistrplus)
+library(BivRegBLS)
+library(kableExtra)
+```
+
+```{r}
+#df <- read.csv("Y:/R/Prob & Stats Project/ps_dataframe.csv", header = TRUE, sep=',')
+df <- read.csv("Y:/R/Prob & Stats Project/ps_dataframe_new.csv", header = T, stringsAsFactors = F, sep=",")
+diabetes <- df
+```
+
+*Data Description*
+
+This dataset is originally from the National Institute of Diabetes and Digestive and Kidney Diseases. The objective of the dataset is to statistically predict whether a patient has diabetes, based on certain statistical measurements included in the dataset. Several constraints were placed on the selection of these instances from a larger database. All patients here are females at least 21 years old of Pima Indian heritage.
+
+The data consists of two categories viz. tested positive and tested negative. It has 8 features as: number of times pregnant, plasma glucose concentration at 2-hours in an oral glucose tolerance test, diastolic blood pressure (mm Hg), triceps skin fold thickness (mm), 2-hr serum insulin (mu U/ml), BMI (kg/m^2) , diabetes pedigree function  and age (years).
+
+```{r}
+variable.type <- lapply(df, class)
+variable.description <- c("Number of times pregnant", 
+                          "Plasma glucose concentration at 2 hours in an oral glucose tolerance test",
+                          "Diastolic blood pressure", "Triceps skin fold thickness", "2-hour serum insulin (µU/ml)",
+                          "Body Mass Index", 
+                          "Synthesis of the history of Diabetes Mellitus in relatives, generic relationship of those relatives to the subject", 
+                          "Age of the individual", 
+                          "Occurrence of Diabetes")
+variable.name <- colnames(df)
+datadesc <- as.data.frame(cbind(variable.name, variable.type, variable.description))
+rownames(datadesc) <- (1:length(datadesc$variable.name))
+colnames(datadesc) <- c("Variable Name","Data Type","Variable Description")
+datadesc
+```
+
+*Data Preprocessing*
+
+Each of the columns had some zero values, e.g.- age of some of the women was zero or their blood pressure level was zero. We had to replace those values, as in real life those values clearly cannot be zero. We calculated the two-separate means of the column based on the value of the outcome and then replaced those values in place of zeros in that column. We replaced the zeros with means for glucose, blood pressure, skin thickness, insulin and BMI columns. Furthermore, the outcome value was in numeric format. We had to convert it in factor format in order to treat it as two categories of ‘yes’ and ‘no’. Also, the variables were not distributed normally. We took log of the variables in order to bring them in normal distribution.
+
+
+```{r}
+# imputing 0 values
+df$Glucose <- ifelse(df$Outcome==0,replace(df$Glucose,df$Glucose==0,value=round(mean(df[df$Glucose>0 & df$Outcome ==0,]$Glucose))),
+                     replace(df$Glucose,df$Glucose==0,value=round(mean(df[df$Glucose>0 & df$Outcome ==1,]$Glucose))))
+df$BloodPressure <- ifelse(df$BloodPressure==0,replace(df$BloodPressure,df$BloodPressure==0,value=round(mean(df[df$BloodPressure>0 & df$Outcome ==0,]$BloodPressure))),
+                           replace(df$BloodPressure,df$BloodPressure==0,value=round(mean(df[df$BloodPressure>0 & df$Outcome ==1,]$BloodPressure))))
+df$BMI <- ifelse(df$Outcome==0,replace(df$BMI,df$BMI==0,value=round(mean(df[df$BMI>0 & df$Outcome ==0,]$BMI))),
+                 replace(df$BMI,df$BMI==0,value=round(mean(df[df$BMI>0 & df$Outcome ==1,]$BMI))))
+
+```
+
+*Converting distribution to normal*
+
+It was found that most of the variables did not have normal distribution. So, in order to convert them into normal distribution and to carry out statistical analysis, log of those variables was taken.
+
+```{r}
+#as factor
+df$Outcome <- as.factor(df$Outcome)
+df1 <- df
+#taking log
+df[,c(2,3,6,8)] <- log(df[,c(2,3,6,8)])
+```
+
+*Population and sample creation*
+
+We created two independent populations, one for non-diabetic women and other for diabetic women. pop0 has population of non-diabetic women and pop1 has population of diabetic women. After that we took one sample from each of the populations.
+
+```{r}
+#Creating two independent populations
+pop0<-df[df$Outcome==0,]
+pop1<-df[df$Outcome==1,]
+
+#Creating samples
+sample0<-sample_n(pop0, 450)
+sample1<-sample_n(pop1, 250)
+```
+
+```{r}
+#1 Number of Times Pregnant
+#Normality Testing
+kurtosis(df$Pregnancies) #Calculate Kurtosis
+skewness(df$Pregnancies) #Calculate Skewness
+shapiro.test(df$Pregnancies) #Significance Testing "Shapiro-Wilk's test" statistical analysis
+
+#Plots
+p1 <- ggplot(df, aes(x=df$Pregnancies,fill=df$Outcome))+
+  geom_bar(alpha=0.35, position="identity",colour="white")+
+  xlab("Pregnancies")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$Pregnancies,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("Pregnancies")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2,nrow=1)
+```
+
+*Inference on Pregnancies*
+
+•	The first histogram plot is for how many times a woman has been pregnant and from the plot we can see that the greatest number of times a woman has been pregnant is 1. 135 women were pregnant only once, while 103 women were pregnant for two times. 111 women had never been pregnant. The histogram for number of times a woman has been pregnant is right skewed.
+•	From the segmented histograms we can clearly see that as the number of times woman has been pregnant increases, the chances of having diabetes increases.
+•	The box plot clearly shows that median of number of times a woman has been pregnant is greater in case of women suffering from diabetes. So, we can say that as pregnancies increases, likelihood of diabetes increases.
+•	By using the qq plot we can see that the distribution isn’t normal distribution. The distribution for pregnancies has skewness of 0.898 and kurtosis is 0.142.
+
+
+```{r}
+fit_preg0 <- fitdist(pop0$Pregnancies, "norm")
+fit_preg1 <- fitdist(pop1$Pregnancies, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp  (list(fit_preg0), legendtext = plot.legend, xlab = 'Pregnancies for non-diabetic women', xlegend = 'bottomright')
+qqcomp  (list(fit_preg1), legendtext = plot.legend, xlab = 'Pregnancies for diabetic women', xlegend = 'bottomright')
+```
+
+
+```{r}
+#2 Glucose
+#Normality Test
+kurtosis(df$Glucose) #Calculate Kurtosis
+skewness(df$Glucose) #Calculate Skewness
+shapiro.test(df$Glucose) #Significance Testing "Shapiro-Wilk's test"
+
+#Plots
+p1 <- ggplot(df, aes(x=df$Glucose,fill=df$Outcome))+
+  geom_histogram(alpha=0.35, position="identity",colour="white")+
+  xlab("Glucose")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$Glucose,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("Glucose")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2, nrow=1)
+```
+
+*Inference on Glucose*
+
+•	In first plot, we have plotted two separate histograms, one for women those have diabetes(blue) and other for non-diabetic(red). From plot it can be clearly seen that the glucose level of women having diabetes is higher than women that do not have diabetes.
+•	It can be clearly seen from the box plot that the median for glucose is higher in case of diabetic women. From this we can say that as the glucose increases, chances of diabetes increases.
+•	The glucose distribution has almost normal distribution and this can be clearly seen from qq plot. Skewness for glucose distribution is -0.069 and kurtosis is -0.18.
+
+
+```{r}
+fit_glucose0 <- fitdist(pop0$Glucose, "norm")
+fit_glucose1 <- fitdist(pop1$Glucose, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp(list(fit_glucose0), legendtext = plot.legend, xlab = 'Glucose level of non-diabetic women', xlegend = 'bottomright')
+qqcomp(list(fit_glucose1), legendtext = plot.legend, xlab = 'Glucose level of diabetic women', xlegend = 'bottomright')
+```
+
+*Normality testing*
+
+From the Q-Q probability plots for non-diabetic & diabetic PIMA India Women, it can be inferred that the observed values againt normally distributed data(represented by the line). Normally distributed data fall along the line.
+
+*Goodness-of-fit test*
+
+The goodness-of-fit tests can be used to determine whether a certain distribution is a good fit. Calculating
+the goodness-of-fit statistics also helps to order the fitted distributions accordingly to how good they fit
+to your data. This feature is very helpful for comparing the fitted models.
+
+```{r}
+#Goodness of fit
+descdist(pop0$Glucose)
+descdist(pop1$Glucose)
+```
+As it can be observed from the plot, normal distribution as well as lognormal distribution are the closest to the distribution for Glucose for both the cases.
+
+
+*Hypothesis testing*
+
+We want to test if the outcome is dependent on the selected variable. So, for testing the hypothesis we would be creating two independent populations based on the outcome and we will take one sample from each of the populations. Then we will confirm if the selected variable contributes towards diabetes by carrying out hypothesis testing for difference of means of population. There won’t be any difference in means of two populations if the variable does not contribute towards diabetes and on the other hand, if the variable is contributing towards diabetes then there would be difference in means of the two populations.
+As we know the variance of both the populations and we want to measure the difference of means, we would be using two sample z-test. Furthermore, we just want to check if the difference is zero or not, so we would be performing a two-sided test. We have selected the confidence level of 95%. If the z-value is between -1.96 and 1.96, we would fail to reject the null hypothesis and if it lies in rejection region then we would reject the null hypothesis.
+
+zcalc = ((x1-x2)-(mu1-mu2)) / sqrt((sqr(σ1)/n1) + (sqr(σ2)/n2))
+
+where,
+x1 is the mean of sample 1 (non-diabetic women),
+x2 is the mean of sample 2 (diabetic women),
+mu1-mu2 is the hypothesized difference between population means which is 0, 
+σ1 is the standard deviation of population 1 (non-diabetic women),
+σ2 is the standard deviation of population 2 (diabetic women),
+n1 is the size of sample 1 (non-diabetic women),
+n2 is the size of sample 2 (diabetic women). 
+
+
+```{r}
+#hypothesis testing
+#function for z-statistic
+z_test = function(a, b, var_a, var_b){
+  n.a = length(a)
+  n.b = length(b)
+  z = ((mean(a, na.rm=TRUE) - mean(b, na.rm=TRUE)) / (sqrt((var_a)/n.a + (var_b)/n.b))) 
+  return(z)
+}
+z_test(sample0$Glucose, sample1$Glucose, var(pop0$Glucose), var(pop1$Glucose))
+```
+
+*Glucose hypothesis*
+
+We will check whether outcome is dependent on glucose. 
+H0: µ1 - µ2 = 0
+H1: µ1 - µ2 != 0
+z-value = -14.95246
+Thus, for a significance level of α = 0.05, we reject the null hypothesis since the z-value lies outside the range [−1.96, 1.96] and conclude that there is significant difference between the mean of glucose of two population. So, we can say that glucose has effect on diabetes.
+
+
+*Confidence interval of mean*
+
+From the hypothesis testing we found out that the factors contributing towards diabetes are glucose, diabetes pedigree function, BMI and blood pressure. After finding out the factors that are responsible for diabetes, we will now calculate the interval in which these factors lie for diabetic women as well as non-diabetic women. We will use the confidence interval of means formula for this, which is given by,
+
+x-(z(alpha/2)*(sd_pop)/sqrt(sample_size)) < mu < x+(z(alpha/2)(sd_pop)/sqrt(sample_size))
+
+where,
+x is mean of sample,
+sd_pop is standard deviation of population,
+sample_size is size of sample
+
+
+```{r}
+#Confidence interval of mean for glucose level of diabetic women
+mean_sample<-exp(mean(sample1$Glucose))
+sd_pop<-exp(sd(pop1$Glucose))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+
+*Confidence interval of mean for glucose level of diabetic women*
+
+Sample mean of diabetic women = 139.5339 mg/dL
+Standard deviation of population of diabetic women = 1.237442 mg/dL
+Sample size = 25
+α = 0.05
+After calculation we find that the glucose level of diabetic women lies between 139.05 and 140.01. So, if a woman is diabetic, we can say with 95% confidence that her glucose level lies in this range.
+
+
+```{r}
+#Confidence interval of mean for glucose level of non-diabetic women
+mean_sample<-exp(mean(sample0$Glucose))
+sd_pop<-exp(sd(pop0$Glucose))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+
+*Confidence interval of mean for Glucose level of non-diabetic women*
+
+Sample mean of non-diabetic women = 108.1993 mg/dL
+Standard deviation of population of non-diabetic women = 1.248205 mg/dL
+Sample size = 25
+α = 0.05
+After calculation we find that the glucose level of non-diabetic women lies between 107.71 and 108.6886. So, if a woman is non-diabetic, we can say with 95% confidence that her glucose level lies in this range.
+
+
+
+```{r}
+#3 Blood pressure
+#Normality Test
+kurtosis(df$BloodPressure) #Calculate Kurtosis
+skewness(df$BloodPressure) #Calculate Skewness
+shapiro.test(df$BloodPressure) #Significance Testing "Shapiro-Wilk's test"
+
+#Plots
+p1 <- ggplot(df, aes(x=df$BloodPressure,fill=df$Outcome))+
+  geom_histogram(alpha=0.35, position="identity",colour="white")+
+  xlab("Blood pressure")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$BloodPressure,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("Blood pressure")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2,nrow=1)
+```
+*Inference on Blood Pressure*
+
+•	From first plot we can see that most of the women those who don’t have diabetes have a blood pressure level of around 69 and on the other hand majority of diabetic women have slightly higher blood pressure as compared to them. From the segmented his
+•	Median of blood pressure level is high in case of women suffering from diabetes. Although there is not too much of difference in median we can say that with increase in blood pressure level, chances of diabetes increases.
+•	Skewness of blood pressure distribution is -0.8 and kurtosis is 3.32
+
+
+```{r}
+fit_bp0 <- fitdist(pop0$BloodPressure, "norm")
+fit_bp1 <- fitdist(pop1$BloodPressure, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp(list(fit_bp0), legendtext = plot.legend, xlab = 'Blood pressure of non-diabetic women', xlegend = 'bottomright')
+qqcomp(list(fit_bp1), legendtext = plot.legend, xlab = 'Blood pressure of diabetic women', xlegend = 'bottomright')
+
+```
+*Normality testing*
+
+From the Q-Q probability plots for non-diabetic & diabetic PIMA India Women, it can be inferred that the observed values againt normally distributed data(represented by the line). Normally distributed data fall along the line.
+
+
+```{r}
+#Goodness of fit
+descdist(pop0$BloodPressure)
+descdist(pop1$BloodPressure)
+```
+As can be observed from the plot, normal distribution as well as lognormal distribution are the closest to
+the distribution for BloodPressure for both the cases and also, due to existing outliers the data is skewed.
+
+```{r}
+#hypothesis testing
+z_test(sample0$BloodPressure, sample1$BloodPressure, var(pop0$BloodPressure), var(pop1$BloodPressure))
+```
+
+*Blood pressure hypothesis* 
+
+We will check whether outcome is dependent on blood pressure. 
+H0: µ1 - µ2 = 0
+H1: µ1 - µ2 != 0
+z-value = -4.587262
+Thus, for a significance level of α = 0.05, we reject the null hypothesis since the z-value lies outside the range [−1.96, 1.96] and conclude that there is significant difference between the mean of blood pressure of two population. So, we can say that blood pressure has effect on diabetes.
+
+
+```{r}
+#Confidence interval of mean for blood pressure of diabetic women
+mean_sample<-exp(mean(sample1$BloodPressure))
+sd_pop<-exp(sd(pop1$BloodPressure))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+
+*Confidence interval of mean for blood pressure of diabetic women*
+
+Sample mean of diabetic women = 74.14762 mm Hg
+Standard deviation of population of diabetic women = 1.180992 mm Hg
+Sample size = 25
+α = 0.05
+After calculation we find that the blood pressure of diabetic women lies between 73.68 and 74.61. So, if a woman is diabetic, we can say with 95% confidence that her blood pressure lies in this range.
+
+```{r}
+#Confidence interval of mean for blood pressure of non-diabetic women
+mean_sample<-exp(mean(sample0$BloodPressure))
+sd_pop<-exp(sd(pop0$BloodPressure))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+
+*Confidence interval of mean for blood pressure of non-diabetic women*
+
+Sample mean of non-diabetic women = 69.72911 mm Hg
+Standard deviation of population of non-diabetic women = 1.192221 mm Hg
+Sample size = 25
+α = 0.05
+After calculation we find that the blood pressure of non-diabetic women lies between 69.26176 and 70.19646. So, if a woman is non-diabetic, we can say with 95% confidence that her blood pressure lies in this range.
+
+
+```{r}
+#4 Skin Thickness
+#Normality Test
+kurtosis(df$SkinThickness, na.rm=TRUE) #Calculate Kurtosis
+skewness(df$SkinThickness, na.rm=TRUE) #Calculate Skewness
+shapiro.test(df$SkinThickness) #Significance Testing "Shapiro-Wilk's test"
+
+#Plots
+p1 <- ggplot(df, aes(x=df$SkinThickness,fill=df$Outcome))+
+  geom_histogram(alpha=0.35, position="identity",colour="white")+
+  xlab("Skin Thickness")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$SkinThickness,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("Skin Thickness")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2,nrow=1)
+```
+
+*Inference on Skin Thickness*
+
+•	From the first plot, for segmented histograms, it can be seen that there is not much of difference in skin thickness of diabetic and non-diabetic women
+•	The median of skin thickness is almost same for both diabetic and non-diabetic women. It can be said that skin thickness hardly has any effect on diabetes.
+•	The skewness of skin thickness distribution is 0.119 and kurtosis is -0.17.
+
+
+```{r}
+fit_st0 <- fitdist(pop0$SkinThickness, "norm")
+fit_st1 <- fitdist(pop1$SkinThickness, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp(list(fit_st0), legendtext = plot.legend, xlab = 'Skin Thickness of non-diabetic women', xlegend = 'bottomright')
+qqcomp(list(fit_st1), legendtext = plot.legend, xlab = 'Skin Thickness of diabetic women', xlegend = 'bottomright')
+```
+*Normality testing*
+
+From the Q-Q probability plots for non-diabetic & diabetic PIMA India Women, it can be inferred that the observed values againt normally distributed data(represented by the line). Normally distributed data fall along the line.
+
+
+```{r}
+#Goodness of fit
+descdist(pop0$SkinThickness)
+descdist(pop1$SkinThickness)
+```
+As can be observed from the plot, normal distribution as well as lognormal distribution are the closest to the distribution for SkinThickness for both the cases.
+
+
+```{r}
+#hypothesis testing
+z_test(sample0$SkinThickness, sample1$SkinThickness, var(pop0$SkinThickness), var(pop1$SkinThickness))
+```
+
+*Skin thickness hypothesis*
+
+We will check whether outcome is dependent on skin thickness. 
+H0: µ1 - µ2 = 0
+H1: µ1 - µ2 != 0
+z-value = 0.4995874
+Thus, for a significance level of α = 0.05, we fail to reject the null hypothesis since the z-value lies within the range [−1.96, 1.96] and conclude that there is no significant difference between the mean of skin thickness of two population. So, we can say that skin thickness has no effect on diabetes.
+
+
+```{r}
+#5 Insulin
+#Normality Test
+kurtosis(df$Insulin) #Calculate Kurtosis
+skewness(df$Insulin) #Calculate Skewness
+shapiro.test(df$Insulin) #Significance Testing "Shapiro-Wilk's test"
+
+#Plots
+p1 <- ggplot(df, aes(x=df$Insulin,fill=df$Outcome))+
+  geom_histogram(alpha=0.35, position="identity",colour="white")+
+  xlab("Insulin")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$Insulin,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("Insulin")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2,nrow=1)
+```
+*Inference on Insulin*
+
+•	Non-diabetic women have slightly lower values of insulin as compared to diabetic women.
+•	Median of insulin serum is higher in case of diabetic women. 
+•	The distribution is somewhat normal. It has skewness of 0.24 and kurtosis of -0.46
+
+
+```{r}
+fit_insulin0 <- fitdist(pop0$Insulin, "norm")
+fit_insulin1 <- fitdist(pop1$Insulin, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp(list(fit_insulin0), legendtext = plot.legend, xlab = 'Insulin of non-diabetic women', xlegend = 'bottomright')
+qqcomp(list(fit_insulin1), legendtext = plot.legend, xlab = 'Insulin of diabetic women', xlegend = 'bottomright')
+```
+*Normality testing*
+
+From the Q-Q probability plots for non-diabetic & diabetic PIMA India Women, it can be inferred that the observed values againt normally distributed data(represented by the line). Normally distributed data fall along the line.
+
+
+```{r}
+#Goodness of fit
+descdist(pop0$Insulin)
+descdist(pop1$Insulin)
+```
+As can be observed from the plot, normal distribution as well as lognormal distribution are the closest to
+the distribution for Insulin for both the cases.
+
+
+```{r}
+#hypothesis testing
+z_test(sample0$Insulin, sample1$Insulin, var(pop0$Insulin), var(pop1$Insulin))
+```
+
+*Insulin hypothesis* 
+
+We will check whether outcome is dependent on insulin. 
+H0: µ1 - µ2 = 0
+H1: µ1 - µ2 != 0
+z-value = 1.145054
+Thus, for a significance level of α = 0.05, we fail to reject the null hypothesis since the z-value lies within the range [−1.96, 1.96] and conclude that there is no significant difference between the mean of insulin of two samples. So, we can say that insulin has no effect on diabetes.
+
+
+
+```{r}
+#6 BMI
+#Normality Test
+kurtosis(df$BMI) #Calculate Kurtosis
+skewness(df$BMI) #Calculate Skewness
+shapiro.test(df$BMI) #Significance Testing "Shapiro-Wilk's test"
+
+#Plots
+p1 <- ggplot(df, aes(x=df$BMI,fill=df$Outcome))+
+  geom_histogram(alpha=0.35, position="identity",colour="white")+
+  xlab("BMI")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$BMI,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("BMI")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2,nrow=1)
+```
+*Inference on BMI*
+
+•	The BMI of diabetic women is higher than non-diabetic women. 
+•	Even the median of BMI is higher in case of diabetic women. So, it can be said that women with diabetes are obese. Obesity is one of the factors for diabetes and obese women have more likelihood of having diabetes.
+•	The distribution is normal and can be confirmed from qq plot. Skewness of BMI distribution is -0.05 and kurtosis is -0.1
+
+
+```{r}
+fit_bmi0 <- fitdist(pop0$BMI, "norm")
+fit_bmi1 <- fitdist(pop1$BMI, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp(list(fit_bmi0), legendtext = plot.legend, xlab = 'BMI of non-diabetic women', xlegend = 'bottomright')
+qqcomp(list(fit_bmi1), legendtext = plot.legend, xlab = 'BMI of diabetic women', xlegend = 'bottomright')
+```
+*Normality test*
+
+From the Q-Q probability plots for non-diabetic & diabetic PIMA India Women, it can be inferred that the observed values againt normally distributed data(represented by the line). Normally distributed data fall along the line.
+
+
+```{r}
+#Goodness of fit
+descdist(pop0$BMI)
+descdist(pop1$BMI)
+```
+As can be observed from the plot, normal distribution as well as lognormal distribution are the closest to
+the distribution for BMI for both the cases.
+
+
+```{r}
+#hypothesis testing
+z_test(sample0$BMI, sample1$BMI, var(pop0$BMI), var(pop1$BMI))
+```
+
+*BMI hypothesis *
+
+We will check whether outcome is dependent on BMI. 
+H0: µ1 - µ2 = 0
+H1: µ1 - µ2 != 0
+z-value = -9.726171
+Thus, for a significance level of α = 0.05, we reject the null hypothesis since the z-value lies outside the range [−1.96, 1.96] and conclude that there is significant difference between the mean of BMI of two population. So, we can say that BMI has effect on diabetes.
+
+
+```{r}
+#Confidence interval of mean for BMI of diabetic women
+mean_sample<-exp(mean(sample1$BMI))
+sd_pop<-exp(sd(pop1$BMI))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+*Confidence interval of mean for BMI of diabetic women*
+
+Sample mean of diabetic women = 34.96717 kg/m^2
+Standard deviation of population of diabetic women = 1.195154 kg/m^2
+Sample size = 25
+α = 0.05
+After calculation we find that the BMI of diabetic women lies between 34.49 and 35.43. So, if a woman is diabetic, we can say with 95% confidence that her BMI lies in this range.
+
+
+```{r}
+#Confidence interval of mean for BMI of non-diabetic women
+mean_sample<-exp(mean(sample0$BMI))
+sd_pop<-exp(sd(pop0$BMI))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+
+*Confidence interval of mean for BMI of non-diabetic women*
+
+Sample mean of non-diabetic women = 30.217 kg/m^2
+Standard deviation of population of non-diabetic women = 1.233967 kg/m^2
+Sample size = 25
+α = 0.05
+After calculation we find that the BMI of non-diabetic women lies between 29.73328 and 30.70071. So, if a woman is non-diabetic, we can say with 95% confidence that her BMI lies in this range.
+
+
+```{r}
+#7 Diabetes Pedigree Function
+#Normality Test
+kurtosis(df$DiabetesPedigreeFunction) #Calculate Kurtosis
+skewness(df$DiabetesPedigreeFunction) #Calculate Skewness
+shapiro.test(df$DiabetesPedigreeFunction) #Significance Testing "Shapiro-Wilk's test"
+
+#Plots
+p1 <- ggplot(df, aes(x=df$DiabetesPedigreeFunction,fill=df$Outcome))+
+  geom_histogram(alpha=0.35, position="identity",colour="white")+
+  xlab("Diabetes Pedigree Function")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$DiabetesPedigreeFunction,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("Diabetes Pedigree Function")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2, nrow=1)
+```
+
+*Inference on Diabetes pedigree function*
+
+•	The plot for diabetes pedigree function is right skewed.
+•	As we can see from the second plot the value of diabetes pedigree function is almost same for diabetic as well as non-diabetic women. It is difficult to say that this parameter has any effect on diabetes and needs to be statistically validated.
+•	There are many outliers in both the cases.
+
+
+```{r}
+fit_dpf0 <- fitdist(pop0$DiabetesPedigreeFunction, "norm")
+fit_dpf1 <- fitdist(pop1$DiabetesPedigreeFunction, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp(list(fit_dpf0), legendtext = plot.legend, xlab = 'Diabetes Pedigree Function of non-diabetic women', xlegend = 'bottomright')
+qqcomp(list(fit_dpf1), legendtext = plot.legend, xlab = 'Diabetes Pedigree Function of diabetic women', xlegend = 'bottomright')
+```
+*Normality testing*
+
+From the Q-Q probability plots for non-diabetic & diabetic PIMA India Women, it can be inferred that the observed values againt normally distributed data(represented by the line). Normally distributed data fall along the line.
+
+
+```{r}
+#Goodness of fit
+descdist(pop0$DiabetesPedigreeFunction)
+descdist(pop1$DiabetesPedigreeFunction)
+```
+As can be observed from the plot, normal distribution as well as lognormal distribution are the closest to
+the distribution for DiabetesPedigreeFunction for both the cases.
+
+
+```{r}
+#hypothesis testing
+z_test(sample0$DiabetesPedigreeFunction, sample1$DiabetesPedigreeFunction, var(pop0$DiabetesPedigreeFunction), var(pop1$DiabetesPedigreeFunction))
+```
+
+*Diabetes Pedigree Function hypothesis*
+
+We will check whether outcome is dependent on Diabetes Pedigree Function. 
+H0: µ1 - µ2 = 0
+H1: µ1 - µ2 != 0
+z-value = 2.219293
+Thus, for a significance level of α = 0.05, we reject the null hypothesis since the z-value lies outside the range [−1.96, 1.96] and conclude that there is significant difference between the mean of Diabetes Pedigree Function of two population. So, we can say that Diabetes Pedigree Function has effect on diabetes.
+
+```{r}
+#Confidence interval of mean for dpf of diabetic women
+mean_sample<-exp(mean(sample1$DiabetesPedigreeFunction))
+sd_pop<-exp(sd(pop1$DiabetesPedigreeFunction))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+*Confidence interval of mean for Diabetes Pedigree Function of diabetic women*
+
+Sample mean of diabetic women = 1.662086
+Standard deviation of population of diabetic women = 1.300171
+Sample size = 25
+α = 0.05
+After calculation we find that the Diabetes Pedigree Function of diabetic women lies between 1.15 and 2.17. So, if a woman is diabetic, we can say with 95% confidence that her Diabetes Pedigree Function lies in this range.
+
+
+```{r}
+#Confidence interval of mean for dpf of non-diabetic women
+mean_sample<-exp(mean(sample0$DiabetesPedigreeFunction))
+sd_pop<-exp(sd(pop0$DiabetesPedigreeFunction))
+size_sample<-25
+z_alpha<--(round(qnorm(0.05/2),2))
+error<-z_alpha*sd_pop/sqrt(size_sample)
+lower_limit<-mean_sample-error
+upper_limit<-mean_sample+error
+lower_limit
+upper_limit
+```
+*Confidence interval of mean for Diabetes Pedigree Function of non-diabetic women*
+
+Sample mean of non-diabetic women = 1.740104
+Standard deviation of population of non-diabetic women = 1.298483
+Sample size = 25
+α = 0.05
+After calculation we find that the Diabetes Pedigree Function of non-diabetic women lies between 1.231099 and 2.24911. So, if a woman is non-diabetic, we can say with 95% confidence that her Diabetes Pedigree Function lies in this range.
+
+
+```{r}
+#8 Age
+#Normality Test
+kurtosis(df$Age) #Calculate Kurtosis
+skewness(df$Age) #Calculate Skewness
+shapiro.test(df$Age) #Significance Testing "Shapiro-Wilk's test"
+
+#Plots
+p1 <- ggplot(df, aes(x=df$Age,fill=df$Outcome))+
+  geom_histogram(alpha=0.35, position="identity",colour="white")+
+  xlab("Age")+labs(fill="Outcome")+theme_classic()
+p2 <- ggplot(df, aes(y=df$Age,x=df$Outcome,fill=df$Outcome))+
+  geom_boxplot(outlier.shape=NA)+
+  ylab("Age")+xlab("Diabetes")+labs(fill="Diabetes")+theme_classic()
+grid.arrange(p1, p2, ncol = 2, nrow=1)
+```
+
+*Inference on Age*
+
+•	The tendency of having diabetes increases as age increases and this can be clearly seen from the segmented histograms.
+•	But diabetes, itself doesn’t seem to have an influence of longevity. Maybe it impacts quality of life which is not measured in this data set. Median of age is higher in case of diabetic women. 
+•	The distribution of age has skewness of 0.599 and kurtosis of -0.6767
+
+
+```{r}
+fit_age0 <- fitdist(pop0$Age, "norm")
+fit_age1 <- fitdist(pop1$Age, "norm")
+par(mfrow=c(1,2))
+plot.legend <- c("norm")
+qqcomp(list(fit_age0), legendtext = plot.legend, xlab = 'Age of non-diabetic women', xlegend = 'bottomright')
+qqcomp(list(fit_age1), legendtext = plot.legend, xlab = 'Age of diabetic women', xlegend = 'bottomright')
+
+```
+
+*Normality testing*
+
+From the Q-Q probability plots for non-diabetic & diabetic PIMA India Women, it can be inferred that the observed values againt normally distributed data(represented by the line). Normally distributed data fall along the line.
+
+
+```{r}
+#correlation heat map
+names(df1)[3] <- "BP"
+names(df1)[4] <- "SkinT"
+names(df1)[7] <- "DPF"
+
+correlat <- round(cor(df1[, setdiff(names(df1), 'Outcome')]),2)
+correlat1 <- melt(correlat) 
+ggplot(data = correlat1, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile( colour = "white") + 
+  scale_fill_gradient(low = "white",high = "steelblue")+
+  geom_text(aes(label=value), size=4)
+```
+
+*Inference from 'r' values and heat map*
+
+•	No two variables share strong linear relationships
+•	Age & Pregnancies have moderate positive linear relationship
+•	Rest of the combination of variables show low to zero linear relationship. Hence, we can say that the variables are independent of each other
+
+*Logistic Regression Model Building*
+A full model will be built with Outcome as the response variable with rest of the 8 variables. Step-wise variable selection method was used to identify the most important variables.
+```{r}
+#Logistic Regression
+set.seed(123)
+model.glm = glm(Outcome~.,data = diabetes, family = binomial)
+step_model = step(model.glm)
+```
+•	The final model chosen with AIC as the criterion for selection generated a logistic regression model with the lowest AIC value of 739.45.52 as shown below.
+•	The important variables necessary for model building are – Insulin, Age, Blood Pressure, DPF, Pregnancies, BMI and Glucose.
+
+```{r}
+# Iteration 1:
+lrmodel1 <- glm(Outcome ~Pregnancies + Glucose + BloodPressure + Insulin + BMI + 
+                  DiabetesPedigreeFunction + Age
+                
+                ,family = "binomial", data =diabetes)
+summary(lrmodel1)
+```
+•	After building another LR model on the basis of these above variables, from the summary we can see the p-value for Insulin and Age is greater than 0.05, thus we remove for the next iteration.
+
+```{r}
+lrmodel2 <- glm(Outcome ~ Pregnancies + Glucose + BloodPressure  + BMI + 
+                  DiabetesPedigreeFunction 
+                
+                ,family = "binomial", data =diabetes)
+summary(lrmodel2)
+```
+
+Finally, all the variables in the 2nd iteration show p-value less than 0.05. Therefore, the important factors are Pregnancies, Glucose, Blood Pressure, BMI and DPF. Thus, out of all the variables in the data, the variables achieved at the end of 2nd iteration show that these variables when combined and built a LR model, are capable of producing the outcome together.
+
+
+*Summary for Logistic Regression*
+
+•	Data set contains many zero values and they have been imputed on the basis of Outcome (0 and 1) and the cleaned data has been used for screening and logistic regression model building
+•	Approximately, 34% cases are diabetic and 66% are non-diabetic
+•	Visual screening of boxplot and categorized histogram shows that some of the field seem to affect the outcome (0 or 1)
+•	The hypothesis based on visual observations were confirmed using the statistical significance test (Hypothesis Testing)
+•	After plotting the correlation matrix, it is observed that the moderate correlation exists between some fields. Since we are using these variables for further model building this observation is critical, otherwise this will make the model’s performance biased
+• The order of importance on the basis of p-value is Glucose – BMI – Pregnancies – Blood Pressure – Diabetes Pedigree Function.
+
+
+*Conclusion*
+
+The PIMA Indian Women’s diabetes data set was analyzed and explored in detail. Statistical validation was done using hypothesis testing for each parameter. Parameters that are responsible for diabetes were identified and then the interval of mean of those values were calculated. The interval of these dependent parameters were calculated seperately for diabetic and non-diabetic women. The result from the hypothesis testing showed that the major contributing factors for diabetes of PIMA Indian women are BMI, glucose level, blood pressure and diabetes pedigree function. The analysis also included studying bivariate relationship between variables using correlation and heat map. It was found that there is moderate correlation between pregnancy and BMI and weak correlation between rest of the rest of them. So, all the parameters are independent. The results of statistical analysis were verified using logistic regression. It was found that even with logistic regression the major contributing factors were same as that were found using statistical analysis. Both statistical anaylsis and classification model yielded the same result.The order of importance from statistical analysis is –Glucose – BMI – Pregnancies – Diabetes Pedigree Function – Blood Pressure. The order of importance from Logistic Regression is   Glucose – BMI – Pregnancies – Blood Pressure – Diabetes Pedigree Function. The  order of importance from both analysis almost match and thus cross validate each other.
+
