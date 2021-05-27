@@ -18,7 +18,7 @@ Insulin: 2-Hour serum insulin (mu U/ml).
 
 BMI: Body mass index (weight in kg/(height in m)2).
 
-DiabetesPedigreeFunction: iabetes pedigree function (a function which scores likelihood of diabetes based on family history).
+DiabetesPedigreeFunction: Diabetes pedigree function (a function which scores likelihood of diabetes based on family history).
 
 Age: No explanation needed.
 
